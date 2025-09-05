@@ -2,9 +2,9 @@ streamlit
 pandas
 plotly
 openpyxl
-feedparser
-lxml
 beautifulsoup4
 requests
+lxml
+feedparser
 tldextract
 geoip2
