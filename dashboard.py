@@ -73,29 +73,7 @@ counts = fuzzy_read("technique_counts")
 st.title("Weekly Threat Intelligence Report")
 
 
-col1, col2, col3 = st.columns(3)
 
-ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
-
-# MITRE TTPs metric
-if ttp_columns:
-    all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
-    all_ttps_flat = []
-    for val in all_ttps:
-        if isinstance(val, list):
-            all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
-        elif val not in [None, "None"]:
-            all_ttps_flat.append(str(val))
-    unique_ttps = len(set(all_ttps_flat))
-else:
-    unique_ttps = 0
-with col2:
-    st.metric("MITRE TTPs", unique_ttps)
-
-# Sources metric
-with col3:
-    st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
 # 3D WORLD MAP (GLOBE)
