@@ -6,94 +6,98 @@ import os
 import pycountry
 import numpy as np
 from difflib import get_close_matches
+from importlib import util
+import requests
 
-# Import your GitHub threat_intel.py
-import threat_intel
-
+# -------------------------------
+# CONFIG
+# -------------------------------
 st.set_page_config(page_title="Weekly Security Report", layout="wide")
 
 # -------------------------------
-# Fetch live threat intelligence
+# LOAD threat_intel.py FROM GITHUB
 # -------------------------------
-@st.cache_data(ttl=600)
-def fetch_live_data():
-    """Fetch live data from threat_intel.py functions."""
-    # Replace these with actual functions from your threat_intel.py
-    try:
-        news_df = threat_intel.fetch_news()
-    except AttributeError:
-        news_df = pd.DataFrame()
-    try:
-        ttp_df = threat_intel.fetch_ttps()
-    except AttributeError:
-        ttp_df = pd.DataFrame()
-    try:
-        actors_df = threat_intel.fetch_threat_actors()
-    except AttributeError:
-        actors_df = pd.DataFrame()
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPO>/main/threat_intel.py"
 
-    # Merge all into a single DataFrame if they exist
-    combined = pd.concat([df for df in [news_df, ttp_df, actors_df] if not df.empty], ignore_index=True)
-    return combined
+try:
+    r = requests.get(GITHUB_RAW_URL)
+    r.raise_for_status()
+    with open("threat_intel.py", "w", encoding="utf-8") as f:
+        f.write(r.text)
+except Exception as e:
+    st.error(f"Failed to fetch threat_intel.py from GitHub: {e}")
+    st.stop()
 
-live_items = fetch_live_data()
+spec = util.spec_from_file_location("threat_intel", "threat_intel.py")
+threat_intel = util.module_from_spec(spec)
+spec.loader.exec_module(threat_intel)
 
 # -------------------------------
-# Load Excel report if available
+# LOAD EXCEL REPORT
 # -------------------------------
 latest_file = "ttp_reports.xlsx"
-if os.path.exists(latest_file):
-    st.sidebar.success(f"Using report: {os.path.basename(latest_file)}")
-    xls = pd.ExcelFile(latest_file)
-    st.sidebar.write("Available sheets:", xls.sheet_names)
-    
-    # Fuzzy sheet loader
-    def fuzzy_read(sheet_name, fallback=None):
-        match = get_close_matches(sheet_name, xls.sheet_names, n=1, cutoff=0.5)
-        if match:
-            st.sidebar.info(f"Using sheet '{match[0]}' for '{sheet_name}'")
-            return pd.read_excel(xls, sheet_name=match[0])
-        elif fallback:
-            st.sidebar.warning(f"No close match for '{sheet_name}', using fallback '{fallback}'")
-            return pd.read_excel(xls, sheet_name=fallback)
-        else:
-            st.sidebar.error(f"No sheet found for '{sheet_name}' and no fallback provided")
-            return pd.DataFrame()
-
-    excel_items = fuzzy_read("items", fallback=xls.sheet_names[0])
-    # Combine Excel with live data
-    items = pd.concat([excel_items, live_items], ignore_index=True)
-else:
-    if live_items.empty:
-        st.error("No Excel file found and no live data fetched.")
+if not os.path.exists(latest_file):
+    # If threat_intel provides a fetch method, run it
+    if hasattr(threat_intel, "fetch_news"):
+        st.info("Fetching latest report via threat_intel...")
+        threat_intel.fetch_news()  # Replace with the actual data-fetch function
+    if not os.path.exists(latest_file):
+        st.error(f"No Excel file found: {latest_file}. Run the tracker first.")
         st.stop()
-    else:
-        items = live_items
+
+st.sidebar.success(f"Using report: {os.path.basename(latest_file)}")
+xls = pd.ExcelFile(latest_file)
+st.sidebar.write(" Available sheets:", xls.sheet_names)
 
 # -------------------------------
-# Dashboard Layout
+# FUZZY SHEET LOADER
+# -------------------------------
+def fuzzy_read(sheet_name, fallback=None):
+    match = get_close_matches(sheet_name, xls.sheet_names, n=1, cutoff=0.5)
+    if match:
+        st.sidebar.info(f"Using sheet '{match[0]}' for '{sheet_name}'")
+        return pd.read_excel(xls, sheet_name=match[0])
+    elif fallback:
+        st.sidebar.warning(f"No close match for '{sheet_name}', using fallback '{fallback}'")
+        return pd.read_excel(xls, sheet_name=fallback)
+    else:
+        st.sidebar.error(f"No sheet found for '{sheet_name}' and no fallback provided")
+        return pd.DataFrame()
+
+# Load sheets
+items = fuzzy_read("items", fallback=xls.sheet_names[0])
+counts = fuzzy_read("technique_counts")
+
+# -------------------------------
+# DASHBOARD LAYOUT
 # -------------------------------
 st.title("Weekly Security Report")
-if os.path.exists(latest_file):
-    st.caption(f"Report source: **{os.path.basename(latest_file)}**")
-else:
-    st.caption("Report source: **Live Data from threat_intel.py**")
+st.caption(f"Report source: **{os.path.basename(latest_file)}**")
 
-# --- Metrics ---
+# --- METRICS ---
 col1, col2, col3 = st.columns(3)
+
 with col2:
     ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
     if ttp_columns:
         all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
-        unique_ttps = all_ttps[all_ttps.notna() & (all_ttps != "None")].nunique()
+        # Flatten nested lists and convert to string safely
+        all_ttps_flat = []
+        for val in all_ttps:
+            if isinstance(val, list):
+                all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
+            elif val not in [None, "None"]:
+                all_ttps_flat.append(str(val))
+        unique_ttps = len(set(all_ttps_flat))
     else:
         unique_ttps = 0
     st.metric("MITRE TTPs", unique_ttps)
+
 with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# World Map (Full Width)
+# WORLD MAP
 # -------------------------------
 country_columns = [col for col in items.columns if col.lower().startswith("country_")]
 if country_columns:
@@ -140,7 +144,7 @@ else:
     st.info("No country_* columns found in this report.")
 
 # -------------------------------
-# Heatmap Helper
+# HELPER FUNCTION: HEATMAP
 # -------------------------------
 def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
     pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
@@ -169,10 +173,11 @@ def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600
     st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
-# Row 3: Top Countries & Top Techniques
+# TOP COUNTRIES & TECHNIQUES
 # -------------------------------
 if country_columns and ttp_columns:
     melted = items.melt(id_vars=country_columns, value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
+    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
     melted = melted.dropna(subset=["TTP"])
     melted = melted[melted["TTP"] != "None"]
     melted = melted.melt(id_vars=["TTP"], value_vars=country_columns, var_name="country_col", value_name="country")
@@ -180,7 +185,7 @@ if country_columns and ttp_columns:
     melted = melted[melted["country"] != "None"]
 
     if not melted.empty:
-        # --- Affected Countries ---
+        # Top countries
         country_counts = melted.groupby("country").size().reset_index(name="count")
         st.subheader("Affected Countries")
         fig_country = go.Figure(go.Bar(
@@ -201,8 +206,9 @@ if country_columns and ttp_columns:
         )
         st.plotly_chart(fig_country, use_container_width=True)
 
-        # --- MITRE Techniques ---
-        ttp_counts = melted.groupby("TTP").size().reset_index(name="count").sort_values("count", ascending=False)
+        # Top TTPs
+        ttp_counts = melted.groupby("TTP").size().reset_index(name="count")
+        ttp_counts = ttp_counts.sort_values("count", ascending=False)
         st.subheader("MITRE Techniques")
         fig_ttp = go.Figure(go.Bar(
             x=ttp_counts["TTP"],
@@ -223,7 +229,7 @@ if country_columns and ttp_columns:
         st.plotly_chart(fig_ttp, use_container_width=True)
 
 # -------------------------------
-# Row 2: Techniques by Country
+# TECHNIQUES PER COUNTRY
 # -------------------------------
 if country_columns and ttp_columns:
     st.subheader("MITRE Techniques per Country")
@@ -233,7 +239,11 @@ if country_columns and ttp_columns:
         countries = [row[col] for col in country_columns if pd.notna(row[col]) and row[col] != "None"]
         for country in countries:
             for ttp in ttps:
-                long_rows.append({"country": country, "TTP": ttp})
+                if isinstance(ttp, list):
+                    for t in ttp:
+                        long_rows.append({"country": country, "TTP": str(t)})
+                else:
+                    long_rows.append({"country": country, "TTP": str(ttp)})
     melted = pd.DataFrame(long_rows)
 
     if not melted.empty:
@@ -242,40 +252,40 @@ if country_columns and ttp_columns:
         all_ttps = melted["TTP"].unique()
         full_index = pd.MultiIndex.from_product([all_countries, all_ttps], names=["country", "TTP"])
         relation_full = relation.set_index(["country", "TTP"]).reindex(full_index, fill_value=0).reset_index()
-        plot_heatmap(relation_full, x_col="country", y_col="TTP",
-                     title="MITRE Technique occurrences per country", x_order=all_countries, height=900)
+        plot_heatmap(
+            relation_full,
+            x_col="country",
+            y_col="TTP",
+            title="Number of occurrences of each MITRE technique correlated to each country",
+            x_order=all_countries,
+            y_order=None,
+            height=900
+        )
     else:
         st.info("No TTP–country relationships available to plot.")
 
 # -------------------------------
-# Row 4: Threat Actors by Country
+# THREAT ACTORS
 # -------------------------------
 if country_columns and "threat_actor" in items.columns:
-    st.subheader("Threat Actor Activity by Country")
+    st.subheader("Threat Actor's Activity by Country")
     melted = items.melt(id_vars=["threat_actor"], value_vars=country_columns, var_name="country_col", value_name="country")
     melted = melted.dropna(subset=["country", "threat_actor"])
     melted = melted[(melted["country"] != "None") & (melted["threat_actor"] != "None")]
     if not melted.empty:
         heatmap_data = melted.groupby(["country", "threat_actor"]).size().reset_index(name="count")
         countries = sorted(heatmap_data["country"].unique())
-        plot_heatmap(heatmap_data, "country", "threat_actor", "", x_order=countries, height=700)
+        plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
 
 # -------------------------------
-# Row 5: Techniques by Threat Actor
+# TECHNIQUES BY THREAT ACTOR
 # -------------------------------
 if "threat_actor" in items.columns and ttp_columns:
-    st.subheader("MITRE Techniques by Threat Actor")
+    st.subheader("MITRE Techniques Employed by Threat Actor")
     melted = items.melt(id_vars=["threat_actor"], value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
+    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
     melted = melted.dropna(subset=["TTP", "threat_actor"])
     melted = melted[(melted["TTP"] != "None") & (melted["threat_actor"] != "None")]
     if not melted.empty:
         relation = melted.groupby(["threat_actor", "TTP"]).size().reset_index(name="count")
-        plot_heatmap(relation, "threat_actor", "TTP", "", height=700)
-
-# -------------------------------
-# Manual Refresh Button
-# -------------------------------
-if st.button("Refresh Live Threat Intel"):
-    live_items = fetch_live_data()
-    items = pd.concat([excel_items, live_items], ignore_index=True) if os.path.exists(latest_file) else live_items
-    st.experimental_rerun()
+        plot_heatmap(relation, "threat_actor", "TTP", "Techniques by Threat Actor", height=700)
