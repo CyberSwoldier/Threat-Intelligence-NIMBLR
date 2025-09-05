@@ -148,35 +148,36 @@ if country_columns:
         z_values = [1 if code in iso_codes else 0 for code in all_iso]   # 1 = affected, 0 = not affected
         colorscale = [[0, 'rgba(30,30,30,1)'], [1, 'yellow']]           # dark grey for unaffected, yellow for affected
 
-        fig_globe = go.Figure(go.Choropleth(
-            locations=all_iso,
-            z=z_values,
-            colorscale=colorscale,
-            showscale=False,
-            marker_line_color='lightblue',  # country borders
-            marker_line_width=0.5,
-            hoverinfo='location'
-        ))
+fig_globe = go.Figure(go.Choropleth(
+    locations=all_iso,
+    z=z_values,
+    colorscale=colorscale,
+    showscale=False,
+    marker_line_color='lightblue',  # country borders
+    marker_line_width=0.5,
+    hoverinfo='location'
+))
 
-        fig_globe.update_geos(
-            projection_type="orthographic",
-            showcoastlines=True,
-            coastlinecolor="lightblue",
-            showland=True,
-            landcolor="#0E1117",
-            showocean=True,
-            oceancolor="#0E1117",
-            showframe=True
-        )
+fig_globe.update_geos(
+    projection_type="orthographic",
+    showcoastlines=True,
+    coastlinecolor="lightblue",
+    showland=True,
+    landcolor="#0E1117",
+    showocean=True,
+    oceancolor="#0E1117",
+    showframe=False,        # remove the square frame
+    bgcolor="#0E1117"       # match background to dark theme
+)
 
-        fig_globe.update_layout(
-            title="Affected Countries (Yellow)",
-            paper_bgcolor="#0E1117",
-            plot_bgcolor="#0E1117",
-            font=dict(color="white"),
-            margin=dict(l=0, r=0, t=40, b=0),
-            height=700
-        )
+fig_globe.update_layout(
+    title="Affected Countries (Yellow)",
+    paper_bgcolor="#0E1117",   # dark paper background
+    plot_bgcolor="#0E1117",    # dark plot background
+    font=dict(color="white"),
+    margin=dict(l=0, r=0, t=40, b=0),
+    height=700
+)
 
         st.plotly_chart(fig_globe, use_container_width=True)
 
