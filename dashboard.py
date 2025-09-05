@@ -120,70 +120,70 @@ country_coords = {
 }
 
 # -------------------------------
-# 3D DARK GLOBE HIGHLIGHTING AFFECTED COUNTRIES
+# 3D World Map (Globe) Highlighting Affected Countries
 # -------------------------------
-if country_columns and ttp_columns:
-    # Build melted dataframe for bar chart
-    melted = items.melt(
-        id_vars=country_columns, 
-        value_vars=ttp_columns, 
-        var_name="ttp_col", 
-        value_name="TTP"
-    )
-    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
-    melted = melted.dropna(subset=["TTP"])
-    melted = melted[melted["TTP"] != "None"]
-    melted = melted.melt(
-        id_vars=["TTP"], 
-        value_vars=country_columns, 
-        var_name="country_col", 
-        value_name="country"
-    )
-    melted = melted.dropna(subset=["country"])
-    melted = melted[melted["country"] != "None"]
+import plotly.graph_objects as go
 
-    if not melted.empty:
-        # Get list of countries actually shown in the bar chart
-        affected_countries = melted["country"].unique()
+# Check for country columns
+country_columns = [col for col in items.columns if col.lower().startswith("country_")]
 
-        # Filter only countries with known coordinates
-        valid_countries = [c for c in affected_countries if c in country_coords]
-        valid_coords = [country_coords[c] for c in valid_countries]
-        lats = [coord["lat"] for coord in valid_coords]
-        lons = [coord["lon"] for coord in valid_coords]
+if country_columns:
+    # Flatten all country entries
+    all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
+    all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
-        # Plot globe
-        fig_globe = go.Figure()
+    if not all_countries_series.empty:
 
-        fig_globe.update_geos(
-            showland=True, landcolor="#0E1117",
-            showocean=True, oceancolor="#0E1117",
-            showcountries=True, countrycolor="lightblue",
-            projection_type="orthographic"
-        )
+        # Convert country names to ISO-3 codes
+        def country_to_iso3(name):
+            try:
+                return pycountry.countries.lookup(name).alpha_3
+            except LookupError:
+                return None
 
-        # Highlight exactly the countries from the bar chart
-        fig_globe.add_trace(go.Scattergeo(
-            lat=lats,
-            lon=lons,
-            text=valid_countries,
-            mode="markers",
-            marker=dict(size=12, color="yellow", opacity=0.9),
-            hoverinfo="text"
+        iso_codes = all_countries_series.map(country_to_iso3).dropna().unique()
+
+        # Prepare data for the choropleth
+        all_iso = [country.alpha_3 for country in pycountry.countries]  # all countries ISO-3
+        z_values = [1 if code in iso_codes else 0 for code in all_iso]   # 1 = affected, 0 = not affected
+        colorscale = [[0, 'rgba(30,30,30,1)'], [1, 'yellow']]           # dark grey for unaffected, yellow for affected
+
+        fig_globe = go.Figure(go.Choropleth(
+            locations=all_iso,
+            z=z_values,
+            colorscale=colorscale,
+            showscale=False,
+            marker_line_color='lightblue',  # country borders
+            marker_line_width=0.5,
+            hoverinfo='location'
         ))
 
+        fig_globe.update_geos(
+            projection_type="orthographic",
+            showcoastlines=True,
+            coastlinecolor="lightblue",
+            showland=True,
+            landcolor="#0E1117",
+            showocean=True,
+            oceancolor="#0E1117",
+            showframe=False
+        )
+
         fig_globe.update_layout(
-            title="Affected Countries (3D Globe)",
+            title="Affected Countries (Yellow)",
             paper_bgcolor="#0E1117",
+            plot_bgcolor="#0E1117",
             font=dict(color="white"),
-            height=600
+            margin=dict(l=0, r=0, t=40, b=0),
+            height=700
         )
 
         st.plotly_chart(fig_globe, use_container_width=True)
+
     else:
-        st.info("No affected countries to display on the globe.")
+        st.info("No valid affected country data found for the globe.")
 else:
-    st.info("No country_* columns or TTP columns found in this report.")
+    st.info("No country_* columns found in this report.")
 
 # -------------------------------
 # HELPER FUNCTION: HEATMAP
