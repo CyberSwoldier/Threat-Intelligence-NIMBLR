@@ -5,6 +5,7 @@ import plotly.express as px
 import os
 import itertools
 from plotly.colors import sequential
+from threat_intel import fetch_news
 import numpy as np
 
 # Import news fetcher from your repo
