@@ -17,7 +17,7 @@ st.set_page_config(page_title="Weekly Security Report", layout="wide")
 # -------------------------------
 # LOAD threat_intel.py FROM GITHUB
 # -------------------------------
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPO>/main/threat_intel.py"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/CyberSwoldier/Threat-Intelligence-Report/main/threat_intel.py"
 
 try:
     r = requests.get(GITHUB_RAW_URL)
