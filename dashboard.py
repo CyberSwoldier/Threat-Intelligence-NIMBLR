@@ -156,7 +156,7 @@ fig_globe = go.Figure(go.Choropleth(
     marker_line_color='lightblue',  # country borders
     marker_line_width=0.5,
     hoverinfo='location'
-)
+))
 
 fig_globe.update_geos(
     projection_type="orthographic",
