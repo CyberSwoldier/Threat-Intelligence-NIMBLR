@@ -18,3 +18,4 @@ from openpyxl.styles import Alignment
 import warnings
 import unicodedata
 import ipaddress
+import fetch_news
