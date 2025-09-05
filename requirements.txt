@@ -13,9 +13,9 @@ import re
 BeautifulSoup
 datetime, timedelta, timezone
 parser as dtparser
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
-import warnings
-import unicodedata
-import ipaddress
-import fetch_news
+get_column_letter
+Alignment
+warnings
+unicodedata
+ipaddress
+fetch_news
