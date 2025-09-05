@@ -100,15 +100,20 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# 3D GLOBE WORLD MAP
+# 3D GLOBE WORLD MAP (highlight affected countries only)
 # -------------------------------
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
-    if not all_countries_series.empty:
-        # Map country names to lat/lon (fallbacks for common countries)
+    # Get the list of countries that appear in the bar chart (top countries)
+    melted = items.melt(id_vars=country_columns, value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
+    melted = melted.melt(id_vars=["TTP"], value_vars=country_columns, var_name="country_col", value_name="country")
+    melted = melted.dropna(subset=["country"])
+    melted = melted[melted["country"] != "None"]
+    affected_countries = melted["country"].unique()
+
+    if affected_countries.size > 0:
         def country_to_latlon(name):
             try:
                 country = pycountry.countries.lookup(name)
@@ -128,23 +133,24 @@ if country_columns:
             except:
                 return (0, 0)
 
-        latlon = all_countries_series.map(country_to_latlon)
-        lats = [x[0] for x in latlon]
-        lons = [x[1] for x in latlon]
-        counts = pd.Series(1, index=range(len(lats)))
+        lats, lons = [], []
+        for country in affected_countries:
+            lat, lon = country_to_latlon(country)
+            lats.append(lat)
+            lons.append(lon)
 
         fig_map = go.Figure(go.Scattergeo(
             lon=lons,
             lat=lats,
-            text=all_countries_series,
+            text=affected_countries,
             marker=dict(
-                size=[5 + 2*count for count in counts],
-                color="orange",
+                size=10,          # Uniform size
+                color="orange",   # Highlighted color
                 line_color='black',
                 line_width=0.5,
-                sizemode='area'
+                symbol='circle'
             ),
-            hovertemplate="<b>%{text}</b><br>Incidents: %{marker.size}<extra></extra>"
+            hovertemplate="<b>%{text}</b><extra></extra>"
         ))
 
         fig_map.update_geos(
@@ -160,7 +166,7 @@ if country_columns:
         )
 
         fig_map.update_layout(
-            title="Reported Incidents by Country (3D Globe)",
+            title="Affected Countries (3D Globe)",
             paper_bgcolor="#0E1117",
             plot_bgcolor="#0E1117",
             font=dict(color="white"),
@@ -169,10 +175,6 @@ if country_columns:
             height=700
         )
         st.plotly_chart(fig_map, use_container_width=True)
-    else:
-        st.info("No valid affected country data found in this report.")
-else:
-    st.info("No country_* columns found in this report.")
 
 # -------------------------------
 # HELPER FUNCTION: HEATMAP
