@@ -95,58 +95,79 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# WORLD MAP (Better looking)
+# 3D Globe World Map
 # -------------------------------
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
-
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
     if not all_countries_series.empty:
-        def country_to_iso3(name):
+        def country_to_latlon(name):
             try:
-                return pycountry.countries.lookup(name).alpha_3
-            except LookupError:
-                return None
+                country = pycountry.countries.lookup(name)
+                # pycountry does not provide lat/lon, so we use a small lookup table or geopy if needed
+                # Here, for simplicity, we use a predefined dict for common countries
+                coords = {
+                    "US": (38, -97),
+                    "CN": (35, 103),
+                    "RU": (61, 105),
+                    "IN": (21, 78),
+                    "BR": (-10, -55),
+                    "GB": (55, -3),
+                    "FR": (46, 2),
+                    "DE": (51, 10),
+                    "JP": (36, 138),
+                    "KR": (36, 128),
+                }
+                return coords.get(country.alpha_2, (0, 0))  # default at 0,0 if unknown
+            except:
+                return (0, 0)
 
-        iso_codes = all_countries_series.map(country_to_iso3)
-        country_counts = pd.DataFrame({"country": all_countries_series, "iso_alpha": iso_codes})
-        country_counts = country_counts.dropna(subset=["iso_alpha"])
-        country_counts = country_counts.groupby("iso_alpha").size().reset_index(name="count")
+        latlon = all_countries_series.map(country_to_latlon)
+        lats = [x[0] for x in latlon]
+        lons = [x[1] for x in latlon]
+        counts = pd.Series(1, index=range(len(lats)))  # simple count per row
 
-        fig_map = go.Figure(go.Choropleth(
-            locations=country_counts["iso_alpha"],
-            z=country_counts["count"],
-            colorscale="Viridis",
-            colorbar_title="Reports",
-            marker_line_color='darkgray',
-            marker_line_width=0.5,
-            autocolorscale=False,
+        fig_map = go.Figure(go.Scattergeo(
+            lon=lons,
+            lat=lats,
+            text=all_countries_series,
+            marker=dict(
+                size=[5 + 2*count for count in counts],
+                color="orange",
+                line_color='black',
+                line_width=0.5,
+                sizemode='area'
+            ),
+            hovertemplate="<b>%{text}</b><br>Incidents: %{marker.size}<extra></extra>"
         ))
 
         fig_map.update_geos(
-            showframe=False,
+            projection_type="orthographic",
+            showland=True,
+            landcolor="rgb(50,50,50)",
+            oceancolor="LightBlue",
+            showocean=True,
+            showcountries=True,
+            countrycolor="white",
             showcoastlines=True,
-            coastlinecolor="Gray",
-            projection_type='natural earth',
-            landcolor="rgb(240,240,240)",
-            oceancolor="LightBlue"
+            coastlinecolor="gray",
         )
 
         fig_map.update_layout(
-            title="Reported Incidents by Country",
+            title="Reported Incidents by Country (3D Globe)",
             paper_bgcolor="#0E1117",
             plot_bgcolor="#0E1117",
             font=dict(color="white"),
-            margin={"r":0,"t":30,"l":0,"b":0}
+            geo=dict(bgcolor='rgba(0,0,0,0)'),
+            margin={"r":0,"t":30,"l":0,"b":0},
+            height=700
         )
         st.plotly_chart(fig_map, use_container_width=True)
     else:
         st.info("No valid affected country data found in this report.")
 else:
     st.info("No country_* columns found in this report.")
-
 # -------------------------------
 # HELPER FUNCTION: HEATMAP
 # -------------------------------
