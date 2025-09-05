@@ -19,3 +19,13 @@ warnings
 unicodedata
 ipaddress
 fetch_news
+pandas
+requests
+feedparser
+beautifulsoup4
+tldextract
+pycountry
+spacy
+geoip2
+openpyxl
+python-dateutil
