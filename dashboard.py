@@ -76,9 +76,8 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# Row 1: World Map (Full Width)
+# WORLD MAP (Enhanced)
 # -------------------------------
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
@@ -98,30 +97,38 @@ if country_columns:
         fig_map = go.Figure(go.Choropleth(
             locations=country_counts["iso_alpha"],
             z=country_counts["count"],
-            colorscale="YlOrBr",
-            colorbar_title="Reports"
+            colorscale="Viridis",
+            colorbar_title="Reports",
+            marker_line_color='black',  # add borders
+            marker_line_width=0.5,
+            hovertemplate='<b>%{location}</b><br>Reports: %{z}<extra></extra>'
         ))
+
         fig_map.update_geos(
+            projection_type="natural earth",
             showcountries=True,
-            countrycolor="white",
-            showcoastlines=False,
-            showland=True,
-            landcolor="#0E1117",
-            bgcolor="#0E1117"
+            showcoastlines=True,
+            coastlinecolor="white",
+            landcolor="#1a1a1a",
+            oceancolor="#0e1117",
+            showocean=True,
+            lakecolor="#0e1117"
         )
+
         fig_map.update_layout(
             title="Reported Incidents by Country",
             paper_bgcolor="#0E1117",
             plot_bgcolor="#0E1117",
             font=dict(color="white"),
-            margin={"r":0,"t":30,"l":0,"b":0}
+            margin={"r":0,"t":50,"l":0,"b":0},
+            height=600
         )
+
         st.plotly_chart(fig_map, use_container_width=True)
     else:
         st.info("No valid affected country data found in this report.")
 else:
     st.info("No country_* columns found in this report.")
-
 # -------------------------------
 # Helper function for heatmaps
 # -------------------------------
