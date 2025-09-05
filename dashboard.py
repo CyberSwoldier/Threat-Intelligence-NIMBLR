@@ -12,10 +12,10 @@ import requests
 # -------------------------------
 # CONFIG
 # -------------------------------
-st.set_page_config(page_title="Weekly Security Report", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Weekly Security Report", layout="wide")
 
 # -------------------------------
-# FETCH threat_intel.py FROM GITHUB
+# LOAD threat_intel.py FROM GITHUB
 # -------------------------------
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/CyberSwoldier/Threat-Intelligence-Report/main/threat_intel.py"
 
@@ -37,16 +37,20 @@ spec.loader.exec_module(threat_intel)
 # -------------------------------
 latest_file = "ttp_reports.xlsx"
 if not os.path.exists(latest_file):
+    # If threat_intel provides a fetch method, run it
     if hasattr(threat_intel, "fetch_news"):
         st.info("Fetching latest report via threat_intel...")
-        threat_intel.fetch_news()
+        try:
+            threat_intel.fetch_news()  # Replace with actual function if different
+        except Exception as e:
+            st.error(f"Failed to fetch report: {e}")
     if not os.path.exists(latest_file):
         st.error(f"No Excel file found: {latest_file}. Run the tracker first.")
         st.stop()
 
 st.sidebar.success(f"Using report: {os.path.basename(latest_file)}")
 xls = pd.ExcelFile(latest_file)
-st.sidebar.write("Available sheets:", xls.sheet_names)
+st.sidebar.write(" Available sheets:", xls.sheet_names)
 
 # -------------------------------
 # FUZZY SHEET LOADER
@@ -63,7 +67,7 @@ def fuzzy_read(sheet_name, fallback=None):
         st.sidebar.error(f"No sheet found for '{sheet_name}' and no fallback provided")
         return pd.DataFrame()
 
-# Load sheets
+# Load sheets safely
 items = fuzzy_read("items", fallback=xls.sheet_names[0])
 counts = fuzzy_read("technique_counts")
 
@@ -71,7 +75,7 @@ counts = fuzzy_read("technique_counts")
 # DASHBOARD LAYOUT
 # -------------------------------
 st.title("Weekly Security Report")
-st.caption(f"Report source: **{os.path.basename(latest_file)}**")
+st.caption(f"Report source: **{os.path.basename(latest_file)}**" if os.path.exists(latest_file) else "Report source: **Live Data from threat_intel.py**")
 
 # --- METRICS ---
 col1, col2, col3 = st.columns(3)
@@ -80,6 +84,7 @@ with col2:
     ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
     if ttp_columns:
         all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
+        # Flatten nested lists safely
         all_ttps_flat = []
         for val in all_ttps:
             if isinstance(val, list):
@@ -95,18 +100,18 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# 3D Globe World Map
+# 3D GLOBE WORLD MAP
 # -------------------------------
+country_columns = [col for col in items.columns if col.lower().startswith("country_")]
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
     if not all_countries_series.empty:
+        # Map country names to lat/lon (fallbacks for common countries)
         def country_to_latlon(name):
             try:
                 country = pycountry.countries.lookup(name)
-                # pycountry does not provide lat/lon, so we use a small lookup table or geopy if needed
-                # Here, for simplicity, we use a predefined dict for common countries
                 coords = {
                     "US": (38, -97),
                     "CN": (35, 103),
@@ -119,14 +124,14 @@ if country_columns:
                     "JP": (36, 138),
                     "KR": (36, 128),
                 }
-                return coords.get(country.alpha_2, (0, 0))  # default at 0,0 if unknown
+                return coords.get(country.alpha_2, (0, 0))
             except:
                 return (0, 0)
 
         latlon = all_countries_series.map(country_to_latlon)
         lats = [x[0] for x in latlon]
         lons = [x[1] for x in latlon]
-        counts = pd.Series(1, index=range(len(lats)))  # simple count per row
+        counts = pd.Series(1, index=range(len(lats)))
 
         fig_map = go.Figure(go.Scattergeo(
             lon=lons,
@@ -168,10 +173,14 @@ if country_columns:
         st.info("No valid affected country data found in this report.")
 else:
     st.info("No country_* columns found in this report.")
+
 # -------------------------------
 # HELPER FUNCTION: HEATMAP
 # -------------------------------
 def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
+    if df.empty:
+        st.info(f"No data to plot heatmap for {title}")
+        return
     pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
     if y_order is not None:
         pivot = pivot.reindex(index=y_order, fill_value=0)
