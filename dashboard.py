@@ -166,7 +166,7 @@ if country_columns:
             landcolor="#0E1117",
             showocean=True,
             oceancolor="#0E1117",
-            showframe=False
+            showframe=True
         )
 
         fig_globe.update_layout(
