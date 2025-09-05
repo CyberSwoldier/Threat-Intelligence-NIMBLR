@@ -42,11 +42,21 @@ if "ttp_desc" in df.columns:
 else:
     df_exploded = df.copy()
 
+# Explode affected_countries if exists
+if "affected_countries" in df_exploded.columns:
+    df_exploded = df_exploded.explode("affected_countries")
+
 # --- Heatmap: Techniques by Country ---
-if "source" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
-    country_data = df_exploded.groupby(["source", "ttp_desc"]).size().reset_index(name="count")
+if "affected_countries" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
+    country_data = (
+        df_exploded.groupby(["affected_countries", "ttp_desc"])
+        .size()
+        .reset_index(name="count")
+    )
     if not country_data.empty:
-        heatmap_country = country_data.pivot(index="ttp_desc", columns="source", values="count").fillna(0)
+        heatmap_country = country_data.pivot(
+            index="ttp_desc", columns="affected_countries", values="count"
+        ).fillna(0)
         fig_country = px.imshow(
             heatmap_country,
             text_auto=True,
@@ -54,8 +64,8 @@ if "source" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
             aspect="auto",
         )
         fig_country.update_layout(
-            title="Techniques per Source",
-            xaxis_title="Source Domain",
+            title="Techniques by Affected Country",
+            xaxis_title="Country",
             yaxis_title="Technique",
             margin=dict(l=100, r=50, t=80, b=150),
         )
@@ -63,9 +73,15 @@ if "source" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
 
 # --- Heatmap: Techniques by Threat Actor ---
 if "threat_actor" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
-    actor_data = df_exploded.groupby(["threat_actor", "ttp_desc"]).size().reset_index(name="count")
+    actor_data = (
+        df_exploded.groupby(["threat_actor", "ttp_desc"])
+        .size()
+        .reset_index(name="count")
+    )
     if not actor_data.empty:
-        heatmap_actor = actor_data.pivot(index="ttp_desc", columns="threat_actor", values="count").fillna(0)
+        heatmap_actor = actor_data.pivot(
+            index="ttp_desc", columns="threat_actor", values="count"
+        ).fillna(0)
         fig_actor = px.imshow(
             heatmap_actor,
             text_auto=True,
@@ -73,7 +89,7 @@ if "threat_actor" in df_exploded.columns and "ttp_desc" in df_exploded.columns:
             aspect="auto",
         )
         fig_actor.update_layout(
-            title="Techniques per Threat Actor",
+            title="Techniques by Threat Actor",
             xaxis_title="Threat Actor",
             yaxis_title="Technique",
             margin=dict(l=100, r=50, t=80, b=150),
