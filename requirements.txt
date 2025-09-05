@@ -7,3 +7,5 @@ lxml
 beautifulsoup4
 requests
 tldextract
+fetch_news
+geoip2
