@@ -71,7 +71,7 @@ counts = fuzzy_read("technique_counts")
 # DASHBOARD HEADER & METRICS
 # -------------------------------
 st.title("Weekly Threat Intelligence Report")
-st.caption(f"Report source: **{os.path.basename(latest_file)}**")
+
 
 col1, col2, col3 = st.columns(3)
 
