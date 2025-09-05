@@ -287,11 +287,4 @@ if country_columns and "threat_actor" in items.columns:
         countries = sorted(heatmap_data["country"].unique())
         plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
 
-# -------------------------------
-# TECHNIQUES BY THREAT ACTOR
-# -------------------------------
-if "threat_actor" in items.columns and ttp_columns:
-    st.subheader("MITRE Techniques Employed by Threat Actor")
-    melted = items.melt(id_vars=["threat_actor"], value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
-    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
-    melted = melted.dropna(subset=["TTP", "threat_actor"])
+
