@@ -12,7 +12,7 @@ import requests
 # -------------------------------
 # CONFIG
 # -------------------------------
-st.set_page_config(page_title="Weekly Security Report", layout="wide")
+st.set_page_config(page_title="Weekly Threat Intelligence", layout="wide")
 
 # -------------------------------
 # LOAD threat_intel.py FROM GITHUB
@@ -70,7 +70,7 @@ counts = fuzzy_read("technique_counts")
 # -------------------------------
 # DASHBOARD HEADER & METRICS
 # -------------------------------
-st.title("Weekly Security Report")
+st.title("Weekly Threat Intelligence Report")
 st.caption(f"Report source: **{os.path.basename(latest_file)}**")
 
 col1, col2, col3 = st.columns(3)
@@ -139,7 +139,7 @@ if country_columns:
         )
 
         fig_globe.update_layout(
-            title="Affected Countries (Yellow)",
+            title="Countries affected by cyber incidents ( highlighted in yellow)",
             paper_bgcolor="#0E1117",
             plot_bgcolor="#0E1117",
             font=dict(color="white"),
