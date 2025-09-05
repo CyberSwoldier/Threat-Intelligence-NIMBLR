@@ -3,3 +3,6 @@ pandas
 plotly
 openpyxl
 feedparser
+lxml
+beautifulsoup4
+requests
