@@ -68,73 +68,43 @@ items = fuzzy_read("items", fallback=xls.sheet_names[0])
 counts = fuzzy_read("technique_counts")
 
 # -------------------------------
-# DEFINE COLUMNS
-# -------------------------------
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
-ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
-
-# -------------------------------
-# DASHBOARD HEADER
+# DASHBOARD HEADER & METRICS
 # -------------------------------
 st.title("Weekly Security Report")
 st.caption(f"Report source: **{os.path.basename(latest_file)}**")
 
-# -------------------------------
-# METRICS
-# -------------------------------
 col1, col2, col3 = st.columns(3)
 
+ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
+country_columns = [col for col in items.columns if col.lower().startswith("country_")]
+
+# MITRE TTPs metric
+if ttp_columns:
+    all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
+    all_ttps_flat = []
+    for val in all_ttps:
+        if isinstance(val, list):
+            all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
+        elif val not in [None, "None"]:
+            all_ttps_flat.append(str(val))
+    unique_ttps = len(set(all_ttps_flat))
+else:
+    unique_ttps = 0
 with col2:
-    if ttp_columns:
-        all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
-        all_ttps_flat = []
-        for val in all_ttps:
-            if isinstance(val, list):
-                all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
-            elif val not in [None, "None"]:
-                all_ttps_flat.append(str(val))
-        unique_ttps = len(set(all_ttps_flat))
-    else:
-        unique_ttps = 0
     st.metric("MITRE TTPs", unique_ttps)
 
+# Sources metric
 with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# COUNTRY COORDINATES
+# 3D WORLD MAP (GLOBE)
 # -------------------------------
-# Country coordinates dataset
-country_coords = {
-    "Afghanistan": {"lat": 33.0, "lon": 65.0},
-    "Albania": {"lat": 41.0, "lon": 20.0},
-    "Algeria": {"lat": 28.0, "lon": 3.0},
-    "Andorra": {"lat": 42.5, "lon": 1.6},
-    "Angola": {"lat": -12.5, "lon": 18.5},
-    "Antigua and Barbuda": {"lat": 17.05, "lon": -61.8},
-    "Argentina": {"lat": -34.0, "lon": -64.0},
-    "Armenia": {"lat": 40.0, "lon": 45.0},
-    "Australia": {"lat": -27.0, "lon": 133.0},
-    "Austria": {"lat": 47.3333, "lon": 13.3333},
-    # Add more countries as needed
-}
-
-# -------------------------------
-# 3D World Map (Globe) Highlighting Affected Countries
-# -------------------------------
-import plotly.graph_objects as go
-
-# Check for country columns
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
-
 if country_columns:
-    # Flatten all country entries
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
     if not all_countries_series.empty:
-
-        # Convert country names to ISO-3 codes
         def country_to_iso3(name):
             try:
                 return pycountry.countries.lookup(name).alpha_3
@@ -142,19 +112,16 @@ if country_columns:
                 return None
 
         iso_codes = all_countries_series.map(country_to_iso3).dropna().unique()
+        all_iso = [c.alpha_3 for c in pycountry.countries]
+        z_values = [1 if code in iso_codes else 0 for code in all_iso]
+        colorscale = [[0, 'rgba(30,30,30,1)'], [1, 'yellow']]
 
-        # Prepare data for the choropleth
-        all_iso = [country.alpha_3 for country in pycountry.countries]  # all countries ISO-3
-        z_values = [1 if code in iso_codes else 0 for code in all_iso]   # 1 = affected, 0 = not affected
-        colorscale = [[0, 'rgba(30,30,30,1)'], [1, 'yellow']]           # dark grey for unaffected, yellow for affected
-
-        # Create the 3D globe figure
         fig_globe = go.Figure(go.Choropleth(
             locations=all_iso,
             z=z_values,
             colorscale=colorscale,
             showscale=False,
-            marker_line_color='lightblue',  # country borders
+            marker_line_color='lightblue',
             marker_line_width=0.5,
             hoverinfo='location'
         ))
@@ -167,21 +134,20 @@ if country_columns:
             landcolor="#0E1117",
             showocean=True,
             oceancolor="#0E1117",
-            showframe=False,        # remove the square frame
-            bgcolor="#0E1117"       # match background to dark theme
+            showframe=False,
+            bgcolor="#0E1117"
         )
 
         fig_globe.update_layout(
             title="Affected Countries (Yellow)",
-            paper_bgcolor="#0E1117",   # dark paper background
-            plot_bgcolor="#0E1117",    # dark plot background
+            paper_bgcolor="#0E1117",
+            plot_bgcolor="#0E1117",
             font=dict(color="white"),
             margin=dict(l=0, r=0, t=40, b=0),
             height=700
         )
 
         st.plotly_chart(fig_globe, use_container_width=True)
-
     else:
         st.info("No valid affected country data found for the globe.")
 else:
@@ -191,9 +157,6 @@ else:
 # HELPER FUNCTION: HEATMAP
 # -------------------------------
 def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
-    if df.empty:
-        st.info(f"No data available to plot {title}")
-        return
     pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
     if y_order is not None:
         pivot = pivot.reindex(index=y_order, fill_value=0)
@@ -252,37 +215,83 @@ if country_columns and ttp_columns:
             height=600
         )
         st.plotly_chart(fig_country, use_container_width=True)
-# -------------------------------
-# HELPER FUNCTION: HEATMAP
-# -------------------------------
-def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
-    pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
-    if y_order is not None:
-        pivot = pivot.reindex(index=y_order, fill_value=0)
-    if x_order is not None:
-        pivot = pivot.reindex(columns=x_order, fill_value=0)
-    z_values = pivot.values
-    text_values = np.where(z_values > 0, z_values, "")
-    fig = go.Figure(data=go.Heatmap(
-        z=z_values,
-        x=list(pivot.columns),
-        y=list(pivot.index),
-        colorscale="YlOrBr",
-        text=text_values,
-        texttemplate="%{text}",
-        hovertemplate=f"{x_col}: %{{x}}<br>{y_col}: %{{y}}<br>Count: %{{z}}<extra></extra>"
-    ))
-    fig.update_layout(
-        title=title,
-        paper_bgcolor="#0E1117",
-        plot_bgcolor="#0E1117",
-        font=dict(color="white"),
-        height=height
-    )
-    st.plotly_chart(fig, use_container_width=True)
 
+        # Top TTPs
+        ttp_counts = melted.groupby("TTP").size().reset_index(name="count")
+        ttp_counts = ttp_counts.sort_values("count", ascending=False)
+        st.subheader("MITRE Techniques")
+        fig_ttp = go.Figure(go.Bar(
+            x=ttp_counts["TTP"],
+            y=ttp_counts["count"],
+            text=ttp_counts["count"],
+            textposition="auto",
+            marker=dict(color=ttp_counts["count"], colorscale="YlOrBr")
+        ))
+        fig_ttp.update_layout(
+            xaxis_title="Technique",
+            yaxis_title="Nº of Incidents",
+            paper_bgcolor="#0E1117",
+            plot_bgcolor="#0E1117",
+            font=dict(color="white"),
+            showlegend=False,
+            height=600
+        )
+        st.plotly_chart(fig_ttp, use_container_width=True)
 
-    melted = melted[(melted["TTP"] != "None") & (melted["threat_actor"] != "None")]
+# -------------------------------
+# TECHNIQUES PER COUNTRY
+# -------------------------------
+if country_columns and ttp_columns:
+    st.subheader("MITRE Techniques per Country")
+    long_rows = []
+    for idx, row in items.iterrows():
+        ttps = [row[col] for col in ttp_columns if pd.notna(row[col]) and row[col] != "None"]
+        countries = [row[col] for col in country_columns if pd.notna(row[col]) and row[col] != "None"]
+        for country in countries:
+            for ttp in ttps:
+                if isinstance(ttp, list):
+                    for t in ttp:
+                        long_rows.append({"country": country, "TTP": str(t)})
+                else:
+                    long_rows.append({"country": country, "TTP": str(ttp)})
+    melted = pd.DataFrame(long_rows)
+
     if not melted.empty:
-        relation = melted.groupby(["threat_actor", "TTP"]).size().reset_index(name="count")
-        plot_heatmap(relation, "threat_actor", "TTP", "Techniques by Threat Actor", height=700)
+        relation = melted.groupby(["country", "TTP"]).size().reset_index(name="count")
+        all_countries = sorted(melted["country"].unique())
+        all_ttps = melted["TTP"].unique()
+        full_index = pd.MultiIndex.from_product([all_countries, all_ttps], names=["country", "TTP"])
+        relation_full = relation.set_index(["country", "TTP"]).reindex(full_index, fill_value=0).reset_index()
+        plot_heatmap(
+            relation_full,
+            x_col="country",
+            y_col="TTP",
+            title="Number of occurrences of each MITRE technique correlated to each country",
+            x_order=all_countries,
+            y_order=None,
+            height=900
+        )
+    else:
+        st.info("No TTP–country relationships available to plot.")
+
+# -------------------------------
+# THREAT ACTORS
+# -------------------------------
+if country_columns and "threat_actor" in items.columns:
+    st.subheader("Threat Actor's Activity by Country")
+    melted = items.melt(id_vars=["threat_actor"], value_vars=country_columns, var_name="country_col", value_name="country")
+    melted = melted.dropna(subset=["country", "threat_actor"])
+    melted = melted[(melted["country"] != "None") & (melted["threat_actor"] != "None")]
+    if not melted.empty:
+        heatmap_data = melted.groupby(["country", "threat_actor"]).size().reset_index(name="count")
+        countries = sorted(heatmap_data["country"].unique())
+        plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
+
+# -------------------------------
+# TECHNIQUES BY THREAT ACTOR
+# -------------------------------
+if "threat_actor" in items.columns and ttp_columns:
+    st.subheader("MITRE Techniques Employed by Threat Actor")
+    melted = items.melt(id_vars=["threat_actor"], value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
+    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
+    melted = melted.dropna(subset=["TTP", "threat_actor"])
