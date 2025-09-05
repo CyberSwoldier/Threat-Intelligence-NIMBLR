@@ -37,20 +37,16 @@ spec.loader.exec_module(threat_intel)
 # -------------------------------
 latest_file = "ttp_reports.xlsx"
 if not os.path.exists(latest_file):
-    # If threat_intel provides a fetch method, run it
     if hasattr(threat_intel, "fetch_news"):
         st.info("Fetching latest report via threat_intel...")
-        try:
-            threat_intel.fetch_news()  # Replace with actual function if different
-        except Exception as e:
-            st.error(f"Failed to fetch report: {e}")
+        threat_intel.fetch_news()
     if not os.path.exists(latest_file):
         st.error(f"No Excel file found: {latest_file}. Run the tracker first.")
         st.stop()
 
 st.sidebar.success(f"Using report: {os.path.basename(latest_file)}")
 xls = pd.ExcelFile(latest_file)
-st.sidebar.write(" Available sheets:", xls.sheet_names)
+st.sidebar.write("Available sheets:", xls.sheet_names)
 
 # -------------------------------
 # FUZZY SHEET LOADER
@@ -67,24 +63,30 @@ def fuzzy_read(sheet_name, fallback=None):
         st.sidebar.error(f"No sheet found for '{sheet_name}' and no fallback provided")
         return pd.DataFrame()
 
-# Load sheets safely
+# Load sheets
 items = fuzzy_read("items", fallback=xls.sheet_names[0])
 counts = fuzzy_read("technique_counts")
 
 # -------------------------------
-# DASHBOARD LAYOUT
+# DEFINE COLUMNS
+# -------------------------------
+country_columns = [col for col in items.columns if col.lower().startswith("country_")]
+ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
+
+# -------------------------------
+# DASHBOARD HEADER
 # -------------------------------
 st.title("Weekly Security Report")
-st.caption(f"Report source: **{os.path.basename(latest_file)}**" if os.path.exists(latest_file) else "Report source: **Live Data from threat_intel.py**")
+st.caption(f"Report source: **{os.path.basename(latest_file)}**")
 
-# --- METRICS ---
+# -------------------------------
+# METRICS
+# -------------------------------
 col1, col2, col3 = st.columns(3)
 
 with col2:
-    ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
     if ttp_columns:
         all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
-        # Flatten nested lists safely
         all_ttps_flat = []
         for val in all_ttps:
             if isinstance(val, list):
@@ -100,88 +102,69 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# 3D GLOBE WORLD MAP (highlight affected countries only)
+# 3D GLOBE PLOT
 # -------------------------------
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
-    # Get the list of countries that appear in the bar chart (top countries)
-    melted = items.melt(id_vars=country_columns, value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
-    melted = melted.melt(id_vars=["TTP"], value_vars=country_columns, var_name="country_col", value_name="country")
-    melted = melted.dropna(subset=["country"])
-    melted = melted[melted["country"] != "None"]
-    affected_countries = melted["country"].unique()
+    if not all_countries_series.empty:
 
-    if affected_countries.size > 0:
-        def country_to_latlon(name):
+        # Hardcoded lat/lon lookup for demo purposes
+        # In production, consider using geopy or country centroids CSV
+        country_latlon = {}
+        for name in all_countries_series.unique():
             try:
-                country = pycountry.countries.lookup(name)
-                coords = {
-                    "US": (38, -97),
-                    "CN": (35, 103),
-                    "RU": (61, 105),
-                    "IN": (21, 78),
-                    "BR": (-10, -55),
-                    "GB": (55, -3),
-                    "FR": (46, 2),
-                    "DE": (51, 10),
-                    "JP": (36, 138),
-                    "KR": (36, 128),
-                }
-                return coords.get(country.alpha_2, (0, 0))
-            except:
-                return (0, 0)
+                c = pycountry.countries.lookup(name)
+                country_latlon[name] = {"lat": 0, "lon": 0}  # Default 0, replace if you have lat/lon
+            except LookupError:
+                continue
 
-        lats, lons = [], []
-        for country in affected_countries:
-            lat, lon = country_to_latlon(country)
-            lats.append(lat)
-            lons.append(lon)
+        lats = [country_latlon.get(c, {}).get("lat", 0) for c in all_countries_series.unique()]
+        lons = [country_latlon.get(c, {}).get("lon", 0) for c in all_countries_series.unique()]
 
-        fig_map = go.Figure(go.Scattergeo(
-            lon=lons,
+        fig_globe = go.Figure(go.Scattergeo(
             lat=lats,
-            text=affected_countries,
+            lon=lons,
+            text=all_countries_series.unique(),
+            mode="markers",
             marker=dict(
-                size=10,          # Uniform size
-                color="orange",   # Highlighted color
-                line_color='black',
-                line_width=0.5,
-                symbol='circle'
-            ),
-            hovertemplate="<b>%{text}</b><extra></extra>"
+                size=8,
+                color="orange",
+                opacity=0.8
+            )
         ))
 
-        fig_map.update_geos(
+        fig_globe.update_geos(
             projection_type="orthographic",
             showland=True,
-            landcolor="rgb(50,50,50)",
-            oceancolor="LightBlue",
+            landcolor="#0E1117",
+            oceancolor="#0E1117",
             showocean=True,
+            lakecolor="#0E1117",
+            showlakes=True,
             showcountries=True,
-            countrycolor="white",
-            showcoastlines=True,
-            coastlinecolor="gray",
+            countrycolor="white"
         )
 
-        fig_map.update_layout(
+        fig_globe.update_layout(
             title="Affected Countries (3D Globe)",
             paper_bgcolor="#0E1117",
-            plot_bgcolor="#0E1117",
             font=dict(color="white"),
-            geo=dict(bgcolor='rgba(0,0,0,0)'),
-            margin={"r":0,"t":30,"l":0,"b":0},
-            height=700
+            height=600
         )
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.plotly_chart(fig_globe, use_container_width=True)
+    else:
+        st.info("No valid affected country data found for the globe.")
+else:
+    st.info("No country_* columns found in this report.")
 
 # -------------------------------
 # HELPER FUNCTION: HEATMAP
 # -------------------------------
 def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
     if df.empty:
-        st.info(f"No data to plot heatmap for {title}")
+        st.info(f"No data available to plot {title}")
         return
     pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
     if y_order is not None:
@@ -281,7 +264,6 @@ if country_columns and ttp_columns:
                 else:
                     long_rows.append({"country": country, "TTP": str(ttp)})
     melted = pd.DataFrame(long_rows)
-
     if not melted.empty:
         relation = melted.groupby(["country", "TTP"]).size().reset_index(name="count")
         all_countries = sorted(melted["country"].unique())
