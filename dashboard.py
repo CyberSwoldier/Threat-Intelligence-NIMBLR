@@ -102,50 +102,57 @@ with col3:
     st.metric("Sources", items['source'].nunique() if 'source' in items.columns else 0)
 
 # -------------------------------
-# 3D GLOBE PLOT
+# COUNTRY COORDINATES
+# -------------------------------
+# Country coordinates dataset
+country_coords = {
+    "Afghanistan": {"lat": 33.0, "lon": 65.0},
+    "Albania": {"lat": 41.0, "lon": 20.0},
+    "Algeria": {"lat": 28.0, "lon": 3.0},
+    "Andorra": {"lat": 42.5, "lon": 1.6},
+    "Angola": {"lat": -12.5, "lon": 18.5},
+    "Antigua and Barbuda": {"lat": 17.05, "lon": -61.8},
+    "Argentina": {"lat": -34.0, "lon": -64.0},
+    "Armenia": {"lat": 40.0, "lon": 45.0},
+    "Australia": {"lat": -27.0, "lon": 133.0},
+    "Austria": {"lat": 47.3333, "lon": 13.3333},
+    # Add more countries as needed
+}
+
+# -------------------------------
+# 3D DARK GLOBE
 # -------------------------------
 if country_columns:
     all_countries_series = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series[all_countries_series.notna() & (all_countries_series != "None")]
 
     if not all_countries_series.empty:
+        # Filter countries with known coordinates
+        affected_countries = all_countries_series.unique()
+        valid_countries = [country for country in affected_countries if country in country_coords]
+        valid_coords = [country_coords[country] for country in valid_countries]
+        lats = [coord["lat"] for coord in valid_coords]
+        lons = [coord["lon"] for coord in valid_coords]
 
-        # Hardcoded lat/lon lookup for demo purposes
-        # In production, consider using geopy or country centroids CSV
-        country_latlon = {}
-        for name in all_countries_series.unique():
-            try:
-                c = pycountry.countries.lookup(name)
-                country_latlon[name] = {"lat": 0, "lon": 0}  # Default 0, replace if you have lat/lon
-            except LookupError:
-                continue
+        fig_globe = go.Figure()
 
-        lats = [country_latlon.get(c, {}).get("lat", 0) for c in all_countries_series.unique()]
-        lons = [country_latlon.get(c, {}).get("lon", 0) for c in all_countries_series.unique()]
+        # Dark ocean globe with light blue country borders
+        fig_globe.update_geos(
+            showland=True, landcolor="#0E1117",
+            showocean=True, oceancolor="#0E1117",
+            showlakes=True, lakecolor="#0E1117",
+            showcountries=True, countrycolor="lightblue",
+            projection_type="orthographic"
+        )
 
-        fig_globe = go.Figure(go.Scattergeo(
+        # Highlight affected countries in yellow
+        fig_globe.add_trace(go.Scattergeo(
             lat=lats,
             lon=lons,
-            text=all_countries_series.unique(),
+            text=valid_countries,
             mode="markers",
-            marker=dict(
-                size=8,
-                color="orange",
-                opacity=0.8
-            )
+            marker=dict(size=10, color="yellow", opacity=0.9)
         ))
-
-        fig_globe.update_geos(
-            projection_type="orthographic",
-            showland=True,
-            landcolor="#0E1117",
-            oceancolor="#0E1117",
-            showocean=True,
-            lakecolor="#0E1117",
-            showlakes=True,
-            showcountries=True,
-            countrycolor="white"
-        )
 
         fig_globe.update_layout(
             title="Affected Countries (3D Globe)",
@@ -153,9 +160,10 @@ if country_columns:
             font=dict(color="white"),
             height=600
         )
+
         st.plotly_chart(fig_globe, use_container_width=True)
     else:
-        st.info("No valid affected country data found for the globe.")
+        st.info("No valid affected country data for the globe.")
 else:
     st.info("No country_* columns found in this report.")
 
@@ -224,86 +232,3 @@ if country_columns and ttp_columns:
             height=600
         )
         st.plotly_chart(fig_country, use_container_width=True)
-
-        # Top TTPs
-        ttp_counts = melted.groupby("TTP").size().reset_index(name="count")
-        ttp_counts = ttp_counts.sort_values("count", ascending=False)
-        st.subheader("MITRE Techniques")
-        fig_ttp = go.Figure(go.Bar(
-            x=ttp_counts["TTP"],
-            y=ttp_counts["count"],
-            text=ttp_counts["count"],
-            textposition="auto",
-            marker=dict(color=ttp_counts["count"], colorscale="YlOrBr")
-        ))
-        fig_ttp.update_layout(
-            xaxis_title="Technique",
-            yaxis_title="Nº of Incidents",
-            paper_bgcolor="#0E1117",
-            plot_bgcolor="#0E1117",
-            font=dict(color="white"),
-            showlegend=False,
-            height=600
-        )
-        st.plotly_chart(fig_ttp, use_container_width=True)
-
-# -------------------------------
-# TECHNIQUES PER COUNTRY
-# -------------------------------
-if country_columns and ttp_columns:
-    st.subheader("MITRE Techniques per Country")
-    long_rows = []
-    for idx, row in items.iterrows():
-        ttps = [row[col] for col in ttp_columns if pd.notna(row[col]) and row[col] != "None"]
-        countries = [row[col] for col in country_columns if pd.notna(row[col]) and row[col] != "None"]
-        for country in countries:
-            for ttp in ttps:
-                if isinstance(ttp, list):
-                    for t in ttp:
-                        long_rows.append({"country": country, "TTP": str(t)})
-                else:
-                    long_rows.append({"country": country, "TTP": str(ttp)})
-    melted = pd.DataFrame(long_rows)
-    if not melted.empty:
-        relation = melted.groupby(["country", "TTP"]).size().reset_index(name="count")
-        all_countries = sorted(melted["country"].unique())
-        all_ttps = melted["TTP"].unique()
-        full_index = pd.MultiIndex.from_product([all_countries, all_ttps], names=["country", "TTP"])
-        relation_full = relation.set_index(["country", "TTP"]).reindex(full_index, fill_value=0).reset_index()
-        plot_heatmap(
-            relation_full,
-            x_col="country",
-            y_col="TTP",
-            title="Number of occurrences of each MITRE technique correlated to each country",
-            x_order=all_countries,
-            y_order=None,
-            height=900
-        )
-    else:
-        st.info("No TTP–country relationships available to plot.")
-
-# -------------------------------
-# THREAT ACTORS
-# -------------------------------
-if country_columns and "threat_actor" in items.columns:
-    st.subheader("Threat Actor's Activity by Country")
-    melted = items.melt(id_vars=["threat_actor"], value_vars=country_columns, var_name="country_col", value_name="country")
-    melted = melted.dropna(subset=["country", "threat_actor"])
-    melted = melted[(melted["country"] != "None") & (melted["threat_actor"] != "None")]
-    if not melted.empty:
-        heatmap_data = melted.groupby(["country", "threat_actor"]).size().reset_index(name="count")
-        countries = sorted(heatmap_data["country"].unique())
-        plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
-
-# -------------------------------
-# TECHNIQUES BY THREAT ACTOR
-# -------------------------------
-if "threat_actor" in items.columns and ttp_columns:
-    st.subheader("MITRE Techniques Employed by Threat Actor")
-    melted = items.melt(id_vars=["threat_actor"], value_vars=ttp_columns, var_name="ttp_col", value_name="TTP")
-    melted = melted.explode("TTP") if melted["TTP"].apply(lambda x: isinstance(x, list)).any() else melted
-    melted = melted.dropna(subset=["TTP", "threat_actor"])
-    melted = melted[(melted["TTP"] != "None") & (melted["threat_actor"] != "None")]
-    if not melted.empty:
-        relation = melted.groupby(["threat_actor", "TTP"]).size().reset_index(name="count")
-        plot_heatmap(relation, "threat_actor", "TTP", "Techniques by Threat Actor", height=700)
