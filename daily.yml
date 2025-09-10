@@ -1,17 +1,19 @@
-name: Run Python script daily
+name: Daily threat intel refresh
 
 on:
   schedule:
-    # Runs at 00:00 UTC every day
-    - cron: "0 0 * * *"
-  workflow_dispatch:  # allows manual trigger too
+    - cron: "0 0 * * *"   # every day at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write   # allow workflow to push updates
 
 jobs:
-  run-script:
+  update-report:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -20,9 +22,15 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Run script
+      - name: Run threat intel script
+        run: python threat_intel.py
+
+      - name: Commit and push updated Excel
         run: |
-          python threat_intel.py
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ttp_reports.xlsx
+          git commit -m "Auto update ttp_reports.xlsx [skip ci]" || echo "No changes"
+          git push
