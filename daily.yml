@@ -2,7 +2,7 @@ name: Daily threat intel refresh
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # every day at midnight UTC
+    - cron: "* * * * *"  # every day at midnight UTC
   workflow_dispatch:
 
 permissions:
