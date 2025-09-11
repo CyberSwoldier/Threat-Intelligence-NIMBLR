@@ -72,7 +72,6 @@ counts = fuzzy_read("technique_counts")
 # -------------------------------
 st.title("Weekly Threat Intelligence Report")
 
-
 col1, col2, col3 = st.columns(3)
 
 ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
@@ -287,4 +286,17 @@ if country_columns and "threat_actor" in items.columns:
         countries = sorted(heatmap_data["country"].unique())
         plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
 
+# -------------------------------
+# RAW DATA WITH SEARCH
+# -------------------------------
+st.subheader("Raw Excel Data (Searchable)")
 
+search_term = st.text_input("Search in table", "")
+
+if search_term:
+    mask = items.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
+    filtered_items = items[mask]
+else:
+    filtered_items = items
+
+st.dataframe(filtered_items, use_container_width=True)
