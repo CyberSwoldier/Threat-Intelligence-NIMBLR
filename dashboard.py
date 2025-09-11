@@ -145,6 +145,33 @@ def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600
     st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
+# SIDEBAR NAVIGATION
+# -------------------------------
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Select a page:", ["Dashboard", "About"])
+
+if page == "About":
+    st.title("About This Dashboard")
+    st.markdown("""
+    This dashboard provides insights into threat intelligence reports:
+    - **Select a report date** to view metrics, globe, charts, and heatmaps.
+    - **Filter by country** to view only relevant data.
+    - **Compare up to 5 countries** side by side.
+    - **Search and download** filtered data as Excel.
+    """)
+    st.markdown("For more info, visit the [GitHub repository](https://github.com/CyberSwoldier/Threat-Intelligence-NIMBLR).")
+else:
+    st.title("Weekly Threat Intelligence Dashboard")
+
+    # Fetch and load reports
+    fetch_reports(REPORTS_FOLDER)
+    items = load_reports(REPORTS_FOLDER)
+
+    # Detect columns
+    ttp_columns = [c for c in items.columns if c.lower().startswith("ttp_desc")]
+    country_columns = [c for c in items.columns if c.lower().startswith("country_")]
+
+# -------------------------------
 # DASHBOARD HEADER & METRICS
 # -------------------------------
 st.title("Weekly Threat Intelligence Report")
