@@ -155,13 +155,11 @@ if page == "About":
     st.markdown("""
     This dashboard provides insights into threat intelligence reports:
     - **Select a report date** to view metrics, globe, charts, and heatmaps.
-    - **Filter by country** to view only relevant data.
-    - **Compare up to 5 countries** side by side.
     - **Search and download** filtered data as Excel.
     """)
-    st.markdown("For more info, visit the [GitHub repository](https://github.com/CyberSwoldier/Threat-Intelligence-NIMBLR).")
+    st.markdown("For more info, talk to [Ricardo Mendes Pinto](https://www.linkedin.com/in/ricardopinto110993/).")
 else:
-    st.title("Weekly Threat Intelligence Dashboard")
+    st.title("")
 
     # Fetch and load reports
     fetch_reports(REPORTS_FOLDER)
