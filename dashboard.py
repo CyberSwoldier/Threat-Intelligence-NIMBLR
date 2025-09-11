@@ -310,7 +310,7 @@ if search_term:
             filtered_items.to_excel(writer, index=False, sheet_name="Filtered Data")
         output.seek(0)
         st.download_button(
-            label="📥 Download Filtered Results",
+            label="Download Filtered Results",
             data=output,
             file_name="filtered_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -327,7 +327,7 @@ st.markdown(
     """
     <hr style="margin-top:50px; margin-bottom:10px">
     <p style="text-align:center; color:grey; font-size:12px;">
-    @ Content created by <a href="https://www.linkedin.com/in/ricardopinto110993/" target="_blank">Ricardo Mendes Pinto</a>.
+    @ Created by <a href="https://www.linkedin.com/in/ricardopinto110993/" target="_blank">Ricardo Mendes Pinto</a>.
     </p>
     """,
     unsafe_allow_html=True
