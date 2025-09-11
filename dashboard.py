@@ -89,7 +89,12 @@ def load_all_reports(folder="reports"):
     all_data = []
     for f in files:
         try:
-            df = pd.read_excel(f, sheet_name="items")
+            xls = pd.ExcelFile(f)
+if "items" in xls.sheet_names:
+    df = pd.read_excel(xls, sheet_name="items")
+else:
+    st.warning(f"'items' sheet not found in {f}, using first sheet instead.")
+    df = pd.read_excel(xls, sheet_name=xls.sheet_names[0])
             # Extract date from filename: ttp_reports_ddmmyy.xlsx
             basename = os.path.basename(f)
             date_str = basename.replace("ttp_reports_", "").replace(".xlsx", "")
