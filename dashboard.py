@@ -155,10 +155,11 @@ page = st.sidebar.radio("Select a page:", ["Dashboard", "About"])
 if page == "About":
     st.title("About This Dashboard")
     st.markdown("""
-    This dashboard provides insights into threat intelligence reports:
-    - **Select a report date** to view metrics, globe, charts, and heatmaps.
-    - **Filter by country** with the search bar on top.
-    - **Search and download** filtered data as Excel.
+    This dashboard is updated every Friday and provides threat intelligence insights of the last 7 days.
+    Features:
+    - **Select a report date** to view metrics, globe, charts, and heatmaps of that week.
+    - **Filter by country or select multiple countries with the search bar on top for comparison or objective information.
+    - **View the correspondent articles, search and download filtered data in Excel.
     """)
     st.markdown("For more info, talk to [Ricardo Mendes Pinto](https://www.linkedin.com/in/ricardopinto110993/).")
     st.stop()
