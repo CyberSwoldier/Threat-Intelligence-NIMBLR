@@ -152,9 +152,13 @@ st.title("Weekly Threat Intelligence Report")
 # -------------------------------
 # REPORT SELECTION
 # -------------------------------
-report_dates = sorted(items['report_date'].dt.date.unique())
-selected_date = st.selectbox("Select a report to view", report_dates)
+# Sort report dates descending so the newest is first
+report_dates = sorted(items['report_date'].dt.date.unique(), reverse=True)
 
+# Pre-select the latest report (first in the sorted list)
+selected_date = st.selectbox("Select a report to view", report_dates, index=0)
+
+# Filter the items for the selected report
 selected_report = items[items['report_date'].dt.date == selected_date]
 
 # -------------------------------
