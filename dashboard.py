@@ -85,7 +85,6 @@ def load_reports(folder="reports"):
             if "Human_Attacks" not in xls.sheet_names:
                 st.warning(f"'Human_Attacks' sheet not found in {f}, using '{sheet_name}' instead.")
             df = pd.read_excel(xls, sheet_name=sheet_name)
-            # Extract report date from filename
             date_str = os.path.basename(f).replace("ttp_reports_","").replace(".xlsx","")
             df["report_date"] = pd.to_datetime(date_str, format="%d%m%y", errors="coerce")
             all_data.append(df)
@@ -125,6 +124,9 @@ def country_to_iso3(name):
         return None
 
 def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600):
+    if df.empty:
+        st.info("No data available to display heatmap.")
+        return
     pivot = df.pivot(index=y_col, columns=x_col, values="count").fillna(0)
     if y_order:
         pivot = pivot.reindex(index=y_order, fill_value=0)
@@ -155,36 +157,45 @@ if page == "About":
     st.markdown("""
     This dashboard provides insights into threat intelligence reports:
     - **Select a report date** to view metrics, globe, charts, and heatmaps.
+    - **Filter by country** with the search bar on top.
     - **Search and download** filtered data as Excel.
     """)
     st.markdown("For more info, talk to [Ricardo Mendes Pinto](https://www.linkedin.com/in/ricardopinto110993/).")
-else:
-    st.title("")
-
-    # Fetch and load reports
-    fetch_reports(REPORTS_FOLDER)
-    items = load_reports(REPORTS_FOLDER)
-
-    # Detect columns
-    ttp_columns = [c for c in items.columns if c.lower().startswith("ttp_desc")]
-    country_columns = [c for c in items.columns if c.lower().startswith("country_")]
+    st.stop()
 
 # -------------------------------
-# DASHBOARD HEADER & METRICS
+# DASHBOARD HEADER
 # -------------------------------
 st.title("Weekly Threat Intelligence Report")
 
 # -------------------------------
 # REPORT SELECTION
 # -------------------------------
-# Sort report dates descending so the newest is first
 report_dates = sorted(items['report_date'].dt.date.unique(), reverse=True)
-
-# Pre-select the latest report (first in the sorted list)
 selected_date = st.selectbox("Select a report to view", report_dates, index=0)
-
-# Filter the items for the selected report
 selected_report = items[items['report_date'].dt.date == selected_date]
+
+# -------------------------------
+# MULTI-COUNTRY FILTER (search bar)
+# -------------------------------
+all_countries = []
+if country_columns:
+    all_countries = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
+    all_countries = sorted(all_countries.dropna().unique().tolist())
+selected_countries = st.multiselect(
+    "🌍 Filter by Country (leave empty to show all)",
+    options=all_countries,
+    default=[]
+)
+
+if selected_countries:
+    selected_report = selected_report[
+        selected_report[country_columns].apply(lambda row: row.isin(selected_countries).any(), axis=1)
+    ]
+
+if selected_report.empty:
+    st.warning("No data available for the selected country filter.")
+    st.stop()
 
 # -------------------------------
 # METRICS FOR SELECTED REPORT
@@ -198,7 +209,7 @@ if ttp_columns:
     for val in all_ttps:
         if isinstance(val, (list, tuple, set)):
             all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
-        elif val not in [None, "None", float('nan')]:
+        elif pd.notna(val) and str(val) != "None":
             all_ttps_flat.append(str(val))
     unique_ttps_count = len(set(all_ttps_flat))
 else:
@@ -215,10 +226,10 @@ with col2:
 # GLOBE
 # -------------------------------
 if country_columns:
-    all_countries = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
-    all_countries = all_countries.dropna()[all_countries != "None"]
-    if not all_countries.empty:
-        iso_codes = all_countries.map(country_to_iso3).dropna().unique()
+    all_countries_series = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
+    all_countries_series = all_countries_series.dropna()[all_countries_series != "None"]
+    if not all_countries_series.empty:
+        iso_codes = all_countries_series.map(country_to_iso3).dropna().unique()
         all_iso = [c.alpha_3 for c in pycountry.countries]
         z_values = [1 if code in iso_codes else 0 for code in all_iso]
         fig_globe = go.Figure(go.Choropleth(
@@ -295,13 +306,10 @@ if search_term:
 
     if not filtered_items.empty:
         st.dataframe(filtered_items, use_container_width=True)
-
-        # Prepare Excel download
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             filtered_items.to_excel(writer, index=False, sheet_name="Filtered Data")
-        output.seek(0)  # Reset pointer to start
-
+        output.seek(0)
         st.download_button(
             label="📥 Download Filtered Results",
             data=output,
