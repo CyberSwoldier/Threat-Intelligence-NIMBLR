@@ -189,9 +189,11 @@ selected_countries = st.multiselect(
 )
 
 if selected_countries:
-    selected_report = selected_report[
-        selected_report[country_columns].apply(lambda row: row.isin(selected_countries).any(), axis=1)
-    ]
+    def row_matches_exclusively(row):
+        mentioned = set(row.dropna().astype(str))
+        mentioned.discard("None")
+        return mentioned.issubset(set(selected_countries)) and mentioned != set()
+    selected_report = selected_report[selected_report[country_columns].apply(row_matches_exclusively, axis=1)]
 
 if selected_report.empty:
     st.warning("No data available for the selected country filter.")
