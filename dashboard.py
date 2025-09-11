@@ -291,7 +291,7 @@ if country_columns and "threat_actor" in items.columns:
 # -------------------------------
 st.subheader("Raw Excel Data (Searchable)")
 
-search_term = st.text_input("Search in table", "")
+search_term = st.text_input("Search in table", "Enter the Country's name or Type of CyberAttack")
 
 if search_term:
     mask = items.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
