@@ -183,7 +183,7 @@ if country_columns:
     all_countries = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
     all_countries = sorted(all_countries.dropna().unique().tolist())
 selected_countries = st.multiselect(
-    "🌍 Filter by Country (leave empty to show all)",
+    "🌍 Filter by Country (select multiple or leave empty to show all)",
     options=all_countries,
     default=[]
 )
