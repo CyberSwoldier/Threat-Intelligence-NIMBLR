@@ -291,7 +291,7 @@ st.markdown(
     """
     <hr style="margin-top:50px; margin-bottom:10px">
     <p style="text-align:center; color:grey; font-size:12px;">
-    @ Content created by <a href="https://www.linkedin.com/in/ricardopinto110993/" target="_blank">Ricardo Mendes Pinto</a>. Unauthorized distribution is not allowed
+    @ Content created by <a href="https://www.linkedin.com/in/ricardopinto110993/" target="_blank">Ricardo Mendes Pinto</a>.
     </p>
     """,
     unsafe_allow_html=True
