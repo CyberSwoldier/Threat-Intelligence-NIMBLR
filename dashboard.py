@@ -8,6 +8,7 @@ import numpy as np
 from difflib import get_close_matches
 from importlib import util
 import requests
+from io import BytesIO
 
 # -------------------------------
 # CONFIG
@@ -287,16 +288,50 @@ if country_columns and "threat_actor" in items.columns:
         plot_heatmap(heatmap_data, "country", "threat_actor", "Threat Actor Activity", x_order=countries, height=700)
 
 # -------------------------------
-# RAW DATA WITH SEARCH
+# RAW DATA WITH SEARCH + DOWNLOAD
 # -------------------------------
 st.subheader("Raw Excel Data (Searchable)")
 
-search_term = st.text_input("Search in table", "Enter the Country's name or Type of CyberAttack")
+search_term = st.text_input("Search in table", "")
 
 if search_term:
     mask = items.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
     filtered_items = items[mask]
-else:
-    filtered_items = items
 
-st.dataframe(filtered_items, use_container_width=True)
+    if not filtered_items.empty:
+        st.dataframe(filtered_items, use_container_width=True)
+
+        # Prepare file with signature
+        signature = "@ Content created by Ricardo Mendes Pinto. Unauthorized distribution is not allowed"
+        output = BytesIO()
+
+        # Save as Excel
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            filtered_items.to_excel(writer, index=False, sheet_name="Filtered Data")
+            worksheet = writer.sheets["Filtered Data"]
+            worksheet.write(len(filtered_items) + 2, 0, signature)  # place signature inside file
+
+        st.download_button(
+            label="📥 Download Filtered Results (Excel)",
+            data=output.getvalue(),
+            file_name="filtered_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    else:
+        st.info("No results found for your search.")
+else:
+    st.info("Please enter a search term to view results.")
+
+# -------------------------------
+# INTERNAL SIGNATURE (FOOTER)
+# -------------------------------
+st.markdown(
+    """
+    <hr style="margin-top:50px; margin-bottom:10px">
+    <p style="text-align:center; color:grey; font-size:12px;">
+    @ Content created by <a href="https://www.linkedin.com/in/ricardopinto110993/" target="_blank">Ricardo Mendes Pinto</a>.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
