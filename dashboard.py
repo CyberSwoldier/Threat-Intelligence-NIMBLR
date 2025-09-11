@@ -188,17 +188,6 @@ selected_countries = st.multiselect(
     default=[]
 )
 
-if selected_countries:
-    def row_matches_exclusively(row):
-        mentioned = set(row.dropna().astype(str))
-        mentioned.discard("None")
-        return mentioned.issubset(set(selected_countries)) and mentioned != set()
-    selected_report = selected_report[selected_report[country_columns].apply(row_matches_exclusively, axis=1)]
-
-if selected_report.empty:
-    st.warning("No data available for the selected country filter.")
-    st.stop()
-
 # -------------------------------
 # METRICS FOR SELECTED REPORT
 # -------------------------------
@@ -230,6 +219,10 @@ with col2:
 if country_columns:
     all_countries_series = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
     all_countries_series = all_countries_series.dropna()[all_countries_series != "None"]
+
+    if selected_countries:
+        all_countries_series = all_countries_series[all_countries_series.isin(selected_countries)]
+
     if not all_countries_series.empty:
         iso_codes = all_countries_series.map(country_to_iso3).dropna().unique()
         all_iso = [c.alpha_3 for c in pycountry.countries]
@@ -264,6 +257,10 @@ if country_columns and ttp_columns:
                          var_name="country_col", value_name="country")
     melted = melted.dropna(subset=["country"])
     melted = melted[melted["country"] != "None"]
+
+    # ✅ Only keep selected countries for visualization
+    if selected_countries:
+        melted = melted[melted["country"].isin(selected_countries)]
 
     if not melted.empty:
         # Top countries
