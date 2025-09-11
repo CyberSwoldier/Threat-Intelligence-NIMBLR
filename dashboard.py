@@ -82,9 +82,9 @@ def load_all_reports(folder="reports"):
     for f in files:
         try:
             xls = pd.ExcelFile(f)
-            sheet_name = "items" if "items" in xls.sheet_names else xls.sheet_names[0]
-            if "items" not in xls.sheet_names:
-                st.warning(f"'items' sheet not found in {f}, using '{sheet_name}' instead.")
+            sheet_name = "Human_Attacks" if "Human_Attacks" in xls.sheet_names else xls.sheet_names[0]
+            if "Human_Attacks" not in xls.sheet_names:
+                st.warning(f"'Human_Attacks' sheet not found in {f}, using '{sheet_name}' instead.")
             df = pd.read_excel(xls, sheet_name=sheet_name)
 
             # Extract date from filename
@@ -116,13 +116,13 @@ def load_all_reports(folder="reports"):
 # FETCH & LOAD DATA
 # -------------------------------
 fetch_reports_from_github(REPORTS_FOLDER)
-items = load_all_reports(REPORTS_FOLDER)
+Human_Attacks = load_all_reports(REPORTS_FOLDER)
 
 # -------------------------------
 # DETECT COLUMNS
 # -------------------------------
-ttp_columns = [col for col in items.columns if col.lower().startswith("ttp_desc")]
-country_columns = [col for col in items.columns if col.lower().startswith("country_")]
+ttp_columns = [col for col in Human_Attacks.columns if col.lower().startswith("ttp_desc")]
+country_columns = [col for col in Human_Attacks.columns if col.lower().startswith("country_")]
 
 # -------------------------------
 # DASHBOARD HEADER & METRICS
@@ -132,7 +132,7 @@ col1, col2, col3 = st.columns(3)
 
 # MITRE TTPs metric
 if ttp_columns:
-    all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
+    all_ttps = pd.Series(pd.concat([Human_Attacks[col] for col in ttp_columns], ignore_index=True))
     all_ttps_flat = []
     for val in all_ttps:
         if isinstance(val, (list, tuple, set)):
@@ -146,7 +146,7 @@ with col2:
     st.metric("MITRE TTPs", unique_ttps_count)
 
 # Sources metric
-sources_count = items['source'].nunique() if 'source' in items.columns else 0
+sources_count = Human_Attacks['source'].nunique() if 'source' in Human_Attacks.columns else 0
 with col3:
     st.metric("Sources", sources_count)
 
@@ -183,7 +183,7 @@ def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600
 # 3D WORLD MAP
 # -------------------------------
 if country_columns:
-    all_countries = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
+    all_countries = pd.Series(pd.concat([Human_Attacks[col] for col in country_columns], ignore_index=True))
     all_countries = all_countries.dropna()[all_countries != "None"]
     if not all_countries.empty:
         iso_codes = all_countries.map(country_to_iso3).dropna().unique()
@@ -215,15 +215,15 @@ else:
 st.subheader("Raw Excel Data (Searchable)")
 search_term = st.text_input("Search in table", "")
 if search_term:
-    mask = items.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
-    filtered_items = items[mask]
-    if not filtered_items.empty:
-        st.dataframe(filtered_items, use_container_width=True)
+    mask = Human_Attacks.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
+    filtered_Human_Attacks = Human_Attacks[mask]
+    if not filtered_Human_Attacks.empty:
+        st.dataframe(filtered_Human_Attacks, use_container_width=True)
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            filtered_items.to_excel(writer, index=False, sheet_name="Filtered Data")
+            filtered_Human_Attacks.to_excel(writer, index=False, sheet_name="Filtered Data")
             worksheet = writer.sheets["Filtered Data"]
-            worksheet.write(len(filtered_items)+2, 0, "Content created by Ricardo Mendes Pinto. Unauthorized distribution is not allowed")
+            worksheet.write(len(filtered_Human_Attacks)+2, 0, "Content created by Ricardo Mendes Pinto. Unauthorized distribution is not allowed")
         st.download_button("📥 Download Filtered Results (Excel)", data=output.getvalue(),
                            file_name="filtered_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
