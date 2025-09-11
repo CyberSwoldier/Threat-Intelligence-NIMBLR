@@ -85,11 +85,9 @@ def load_reports(folder="reports"):
             if "Human_Attacks" not in xls.sheet_names:
                 st.warning(f"'Human_Attacks' sheet not found in {f}, using '{sheet_name}' instead.")
             df = pd.read_excel(xls, sheet_name=sheet_name)
-
             # Extract report date from filename
             date_str = os.path.basename(f).replace("ttp_reports_","").replace(".xlsx","")
             df["report_date"] = pd.to_datetime(date_str, format="%d%m%y", errors="coerce")
-
             all_data.append(df)
         except Exception as e:
             st.warning(f"Could not read {f}: {e}")
@@ -116,32 +114,6 @@ items = load_reports(REPORTS_FOLDER)
 # -------------------------------
 ttp_columns = [c for c in items.columns if c.lower().startswith("ttp_desc")]
 country_columns = [c for c in items.columns if c.lower().startswith("country_")]
-
-# -------------------------------
-# DASHBOARD HEADER & METRICS
-# -------------------------------
-st.title("Weekly Threat Intelligence Report")
-col1, col2, col3 = st.columns(3)
-
-# MITRE TTPs metric
-if ttp_columns:
-    all_ttps = pd.Series(pd.concat([items[col] for col in ttp_columns], ignore_index=True))
-    all_ttps_flat = []
-    for val in all_ttps:
-        if isinstance(val, (list, tuple, set)):
-            all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
-        elif val not in [None, "None", float('nan')]:
-            all_ttps_flat.append(str(val))
-    unique_ttps_count = len(set(all_ttps_flat))
-else:
-    unique_ttps_count = 0
-with col2:
-    st.metric("MITRE TTPs", unique_ttps_count)
-
-# Sources metric
-sources_count = items['source'].nunique() if 'source' in items.columns else 0
-with col3:
-    st.metric("Sources", sources_count)
 
 # -------------------------------
 # HELPER FUNCTIONS
@@ -173,10 +145,48 @@ def plot_heatmap(df, x_col, y_col, title, x_order=None, y_order=None, height=600
     st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
-# 3D WORLD MAP
+# DASHBOARD HEADER & METRICS
+# -------------------------------
+st.title("Weekly Threat Intelligence Report")
+
+# -------------------------------
+# REPORT SELECTION
+# -------------------------------
+report_dates = sorted(items['report_date'].dt.date.unique())
+selected_date = st.selectbox("Select a report to view", report_dates)
+
+selected_report = items[items['report_date'].dt.date == selected_date]
+
+# -------------------------------
+# METRICS FOR SELECTED REPORT
+# -------------------------------
+col1, col2 = st.columns(2)
+
+# MITRE TTPs
+if ttp_columns:
+    all_ttps = pd.Series(pd.concat([selected_report[col] for col in ttp_columns], ignore_index=True))
+    all_ttps_flat = []
+    for val in all_ttps:
+        if isinstance(val, (list, tuple, set)):
+            all_ttps_flat.extend([str(x) for x in val if x not in [None, "None"]])
+        elif val not in [None, "None", float('nan')]:
+            all_ttps_flat.append(str(val))
+    unique_ttps_count = len(set(all_ttps_flat))
+else:
+    unique_ttps_count = 0
+with col1:
+    st.metric("MITRE TTPs", unique_ttps_count)
+
+# Sources
+sources_count = selected_report['source'].nunique() if 'source' in selected_report.columns else 0
+with col2:
+    st.metric("Sources", sources_count)
+
+# -------------------------------
+# GLOBE
 # -------------------------------
 if country_columns:
-    all_countries = pd.Series(pd.concat([items[col] for col in country_columns], ignore_index=True))
+    all_countries = pd.Series(pd.concat([selected_report[col] for col in country_columns], ignore_index=True))
     all_countries = all_countries.dropna()[all_countries != "None"]
     if not all_countries.empty:
         iso_codes = all_countries.map(country_to_iso3).dropna().unique()
@@ -192,22 +202,18 @@ if country_columns:
                               showland=True, landcolor="#0E1117",
                               showocean=True, oceancolor="#0E1117",
                               showframe=False, bgcolor="#0E1117")
-        fig_globe.update_layout(title="Countries affected by cyber incidents (highlighted in yellow)",
+        fig_globe.update_layout(title=f"Countries affected in {selected_date}",
                                 paper_bgcolor="#0E1117", plot_bgcolor="#0E1117",
                                 font=dict(color="white"), margin=dict(l=0,r=0,t=40,b=0),
                                 height=700)
         st.plotly_chart(fig_globe, use_container_width=True)
-    else:
-        st.info("No valid country data for globe.")
-else:
-    st.info("No country columns found.")
 
 # -------------------------------
-# TOP COUNTRIES & TTPs (BAR CHARTS)
+# BAR CHARTS & HEATMAPS
 # -------------------------------
 if country_columns and ttp_columns:
-    melted = items.melt(id_vars=country_columns, value_vars=ttp_columns,
-                        var_name="ttp_col", value_name="TTP")
+    melted = selected_report.melt(id_vars=country_columns, value_vars=ttp_columns,
+                                  var_name="ttp_col", value_name="TTP")
     if any(melted["TTP"].apply(lambda x: isinstance(x, (list, tuple, set)))):
         melted = melted.explode("TTP")
     melted = melted.dropna(subset=["TTP"])
@@ -245,7 +251,8 @@ if country_columns and ttp_columns:
         # Heatmap: TTP per Country
         st.subheader("MITRE Techniques per Country")
         heat_data = melted.groupby(["country", "TTP"]).size().reset_index(name="count")
-        plot_heatmap(heat_data, x_col="country", y_col="TTP", title="TTP occurrences per country", height=700)
+        plot_heatmap(heat_data, x_col="country", y_col="TTP",
+                     title=f"TTP occurrences per country ({selected_date})", height=700)
 
 # -------------------------------
 # SEARCHABLE TABLE + DOWNLOAD
