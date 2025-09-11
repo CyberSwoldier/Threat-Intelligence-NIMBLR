@@ -259,20 +259,26 @@ if country_columns and ttp_columns:
 # -------------------------------
 st.subheader("Raw Data Search & Download")
 search_term = st.text_input("Search in table", "")
+
 if search_term:
     mask = items.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)
     filtered_items = items[mask]
+
     if not filtered_items.empty:
         st.dataframe(filtered_items, use_container_width=True)
+
+        # Prepare Excel download
         output = BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
             filtered_items.to_excel(writer, index=False, sheet_name="Filtered Data")
-            worksheet = writer.sheets["Filtered Data"]
-            worksheet.write(len(filtered_items)+2, 0,
-                            "Content created by Ricardo Mendes Pinto. Unauthorized distribution is not allowed")
-        st.download_button("📥 Download Filtered Results", data=output.getvalue(),
-                           file_name="filtered_results.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        output.seek(0)  # Reset pointer to start
+
+        st.download_button(
+            label="📥 Download Filtered Results",
+            data=output,
+            file_name="filtered_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     else:
         st.info("No results found.")
 else:
